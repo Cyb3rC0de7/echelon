@@ -3,6 +3,10 @@
   "version": "1.0.0",
   "description": "Employee hierarchy management system for EPI-USE Africa",
   "main": "index.js",
+  "engines": {
+    "node": "22.x",
+    "npm": "10.x"
+  },
   "scripts": {
     "dev": "concurrently \"npm run server\" \"npm run client\"",
     "server": "cd server && npm run dev",
