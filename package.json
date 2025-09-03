@@ -26,6 +26,19 @@
     "url": "https://github.com/Cyb3rC0de7/echelon/issues"
   },
   "homepage": "https://github.com/Cyb3rC0de7/echelon#readme",
+  "dependencies": {
+    "@emotion/react": "^11.14.0",
+    "@emotion/styled": "^11.14.1",
+    "@mui/icons-material": "^7.3.2",
+    "@mui/material": "^7.3.2",
+    "vite": "^7.1.2",
+    "@vitejs/plugin-react": "^5.0.2",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1",
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.2",
+    "express": "^5.1.0"
+  },
   "devDependencies": {
     "concurrently": "^9.2.1",
     "nodemon": "^3.1.10"
