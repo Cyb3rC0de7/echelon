@@ -1,0 +1,29 @@
+{
+  "name": "echelon",
+  "version": "1.0.0",
+  "description": "Employee hierarchy management system for EPI-USE Africa",
+  "main": "index.js",
+  "scripts": {
+    "dev": "concurrently \"npm run server\" \"npm run client\"",
+    "server": "cd server && npm run dev",
+    "client": "cd client && npm run dev",
+    "build": "cd client && npm run build",
+    "start": "cd server && npm start",
+    "heroku-postbuild": "npm run build"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Cyb3rC0de7/echelon.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Cyb3rC0de7/echelon/issues"
+  },
+  "homepage": "https://github.com/Cyb3rC0de7/echelon#readme",
+  "devDependencies": {
+    "concurrently": "^9.2.1",
+    "nodemon": "^3.1.10"
+  }
+}
