@@ -181,6 +181,39 @@ router.put('/:id', async (req, res) => {
   }
 });
 
+// PUT /api/employees/:id/manager - Update employee's manager
+router.put('/:id/manager', async (req, res) => {
+  try {
+    const employee = await Employee.findByPk(req.params.id);
+    const { managerId } = req.body;
+
+    if (!employee) {
+      return res.status(404).json({ error: 'Employee not found' });
+    }
+    // Check if manager exists and is not the employee themselves
+    if (managerId) {
+      if (managerId == req.params.id) {
+        return res.status(400).json({ error: 'Employee cannot be their own manager' });
+      }
+      const manager = await Employee.findByPk(managerId);
+      if (!manager) {
+        return res.status(400).json({ error: 'Manager not found' });
+      }
+    }
+
+    await employee.update({ managerId: managerId || null });
+    const updatedEmployee = await Employee.findByPk(employee.id, {
+      include: [
+        { model: Employee, as: 'manager', attributes: ['id', 'name', 'surname', 'role'] },
+        { model: Employee, as: 'subordinates', attributes: ['id', 'name', 'surname', 'role'] }
+      ]
+    });
+    res.json(updatedEmployee);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // DELETE /api/employees/:id - Delete employee
 router.delete('/:id', async (req, res) => {
   try {

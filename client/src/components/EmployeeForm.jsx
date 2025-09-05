@@ -164,7 +164,7 @@ const EmployeeForm = ({ employee = null, onSuccess, onError, onCancel }) => {
       )}
       <Box component="form" onSubmit={handleSubmit}>
         <Grid container spacing={2}>
-          <Grid xs={12} md={6}>
+          <Grid>
             <TextField
               label="Employee Number"
               fullWidth
@@ -173,7 +173,7 @@ const EmployeeForm = ({ employee = null, onSuccess, onError, onCancel }) => {
               disabled={!!employee}
             />
           </Grid>
-          <Grid xs={12} md={6}>
+          <Grid>
             <TextField
               label="First Name"
               fullWidth
@@ -181,7 +181,7 @@ const EmployeeForm = ({ employee = null, onSuccess, onError, onCancel }) => {
               onChange={handleChange('name')}
             />
           </Grid>
-          <Grid xs={12} md={6}>
+          <Grid>
             <TextField
               label="Last Name"
               fullWidth
@@ -189,7 +189,7 @@ const EmployeeForm = ({ employee = null, onSuccess, onError, onCancel }) => {
               onChange={handleChange('surname')}
             />
           </Grid>
-          <Grid xs={12} md={6}>
+          <Grid>
             <TextField
               label="Email"
               fullWidth
@@ -198,7 +198,7 @@ const EmployeeForm = ({ employee = null, onSuccess, onError, onCancel }) => {
               type="email"
             />
           </Grid>
-          <Grid xs={12} md={6}>
+          <Grid>
             <DatePicker
               label="Birth Date"
               value={formData.birthDate}
@@ -206,7 +206,7 @@ const EmployeeForm = ({ employee = null, onSuccess, onError, onCancel }) => {
               slotProps={{ textField: { fullWidth: true } }}
             />
           </Grid>
-          <Grid xs={12} md={6}>
+          <Grid>
             <TextField
               label="Salary"
               fullWidth
@@ -218,7 +218,7 @@ const EmployeeForm = ({ employee = null, onSuccess, onError, onCancel }) => {
               }}
             />
           </Grid>
-          <Grid xs={12} md={6}>
+          <Grid>
             <FormControl fullWidth>
               <InputLabel>Role</InputLabel>
               <Select
@@ -234,7 +234,7 @@ const EmployeeForm = ({ employee = null, onSuccess, onError, onCancel }) => {
               </Select>
             </FormControl>
           </Grid>
-          <Grid xs={12} md={6}>
+          <Grid>
             <FormControl fullWidth disabled={loading}>
               <InputLabel>Manager</InputLabel>
               <Select

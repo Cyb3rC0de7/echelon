@@ -24,8 +24,11 @@
     "axios": "^1.11.0",
     "blueimp-md5": "^2.19.0",
     "crypto-js": "^4.2.0",
+    "d3-hierarchy": "^3.1.2",
     "dayjs": "^1.11.18",
     "react": "^19.1.1",
+    "react-dnd": "^16.0.1",
+    "react-dnd-html5-backend": "^16.0.1",
     "react-dom": "^19.1.1",
     "react-router-dom": "^7.8.2",
     "vite": "^7.1.4"

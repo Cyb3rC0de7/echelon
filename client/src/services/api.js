@@ -28,6 +28,9 @@ export const employeeApi = {
   
   // Get hierarchy
   getHierarchy: () => api.get('/employees/hierarchy/tree'),
+
+  // Update employee's manager
+  updateManager: (employeeId, managerId) => api.put(`/employees/${employeeId}/manager`, { managerId }),
 };
 
 // Helper function to handle API errors
