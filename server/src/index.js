@@ -3,6 +3,12 @@ const cors = require('cors');
 const path = require('path');
 require('dotenv').config();
 
+// Database
+const sequelize = require('../config/database');
+
+// Routes
+const employeeRoutes = require('../routes/employees');
+
 const app = express();
 const PORT = process.env.PORT || 5000;
 
@@ -15,23 +21,54 @@ app.get('/api/health', (req, res) => {
   res.json({ message: 'Echelon API is running!', timestamp: new Date().toISOString() });
 });
 
-app.get('/api/employees', (req, res) => {
-  res.json({ 
-    message: 'Employee endpoint working',
-    employees: []
-  });
-});
+// Employee routes
+app.use('/api/employees', employeeRoutes);
 
 // Serve static files from React build (for production)
 if (process.env.NODE_ENV === 'production') {
-  app.use(express.static(path.join(__dirname, '../../client/build')));
+  const buildPath = path.join(__dirname, '../../client/build');
   
+  console.log('Serving static files from:', buildPath);
+  
+  // Serve static files
+  app.use(express.static(buildPath));
+  
+  // Handle React routing - send all non-API requests to index.html
+  app.get('*', (req, res) => {
+    const indexPath = path.join(buildPath, 'index.html');
+    console.log('Serving index.html from:', indexPath);
+    res.sendFile(indexPath);
+  });
+} else {
   app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, '../../client/build', 'index.html'));
+    res.json({ message: 'Echelon API - Development Mode' });
   });
 }
 
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-  console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
-});
+// Database connection and server start
+async function startServer() {
+  try {
+    // Test database connection
+    await sequelize.authenticate();
+    console.log('Database connected successfully');
+    
+    // Sync database (creates tables if they don't exist)
+    await sequelize.sync({ alter: true });
+    console.log('Database synchronized');
+    
+    app.listen(PORT, () => {
+      console.log(`Server running on http://localhost:${PORT}`);
+      console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+      
+      if (process.env.NODE_ENV === 'production') {
+        const buildPath = path.join(__dirname, '../../client/build');
+        console.log('Static files path:', buildPath);
+      }
+    });
+  } catch (error) {
+    console.error('Unable to start server:', error);
+    process.exit(1);
+  }
+}
+
+startServer();
