@@ -27,6 +27,7 @@ const EmployeeForm = ({ employee = null, onSuccess, onError, onCancel }) => {
     birthDate: null,
     salary: '',
     role: '',
+    permissionLevel: 'employee',
     managerId: ''
   });
 
@@ -53,7 +54,11 @@ const EmployeeForm = ({ employee = null, onSuccess, onError, onCancel }) => {
     'HR Manager',
     'Finance Manager',
     'Sales Manager',
-    'Marketing Manager'
+    'Marketing Manager',
+    'Accountant',
+    'Sales Executive',
+    'Marketing Specialist',
+    'Intern'
   ];
 
   useEffect(() => {
@@ -229,6 +234,23 @@ const EmployeeForm = ({ employee = null, onSuccess, onError, onCancel }) => {
                 {roles.map((role) => (
                   <MenuItem key={role} value={role}>
                     {role}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          </Grid>
+          <Grid sx={{ minWidth: 200 }}>
+            <FormControl fullWidth>
+              <InputLabel>Permission Level</InputLabel>
+              <Select
+                value={formData.permissionLevel}
+                label="Permission Level"
+                onChange={handleChange('permissionLevel')}
+                disabled={user?.permissionLevel !== 'admin'} // Only admin can change permission level
+              >
+                {['employee', 'manager', 'hr', 'admin'].map((level) => (
+                  <MenuItem key={level} value={level}>
+                    {level}
                   </MenuItem>
                 ))}
               </Select>

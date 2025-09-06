@@ -8,8 +8,7 @@ const sequelize = require('../config/database');
 
 // Routes
 const employeeRoutes = require('../routes/employees');
-const User = require('../models/User');
-const { authenticateToken, requireRole } = require('../middleware/auth');
+const { authenticateToken } = require('../middleware/auth');
 const authRoutes = require('../routes/auth');
 
 // Use auth routes
@@ -19,15 +18,15 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+const PORT = process.env.PORT || 5000;
+
 // API Routes
 app.get('/api/health', (req, res) => {
   res.json({ message: 'Echelon API is running!', timestamp: new Date().toISOString() });
 });
 
-
+// Auth routes
 app.use('/api/auth', authRoutes);
-const PORT = process.env.PORT || 5000;
-
 // Employee routes
 app.use('/api/employees', authenticateToken, employeeRoutes);
 

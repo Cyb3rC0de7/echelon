@@ -9,9 +9,11 @@ const api = axios.create({
   },
 });
 
-const authApi = {
+export const authApi = {
   login: (credentials) => api.post('/auth/login', credentials),
   register: (userData) => api.post('/auth/register', userData),
+  changePassword: (passwordData) => api.put('/auth/change-password', passwordData),
+  resetPassword: (employeeId) => api.post(`/auth/reset-password/${employeeId}`),
   logout: () => api.post('/auth/logout'), // Client-side token removal
   getMe: () => api.get('/auth/me'),
 };
@@ -37,8 +39,6 @@ api.interceptors.response.use(
     return Promise.reject(error);
   }
 );
-
-export { authApi };
 
 // Employee API calls
 export const employeeApi = {

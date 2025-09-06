@@ -21,7 +21,7 @@ import { authApi } from '../services/api';
 
 const Login = ({ onLogin }) => {
   const [formData, setFormData] = useState({
-    username: '',
+    email: '',
     password: ''
   });
   const [loading, setLoading] = useState(false);
@@ -36,8 +36,8 @@ const Login = ({ onLogin }) => {
   const handleSubmit = async (event) => {
     event.preventDefault();
     
-    if (!formData.username || !formData.password) {
-      setError('Please enter both username and password');
+    if (!formData.email || !formData.password) {
+      setError('Please enter both email and password');
       return;
     }
 
@@ -102,9 +102,9 @@ const Login = ({ onLogin }) => {
           <Box component="form" onSubmit={handleSubmit}>
             <TextField
               fullWidth
-              label="Username or Email"
-              value={formData.username}
-              onChange={handleChange('username')}
+              label="Email"
+              value={formData.email}
+              onChange={handleChange('email')}
               margin="normal"
               disabled={loading}
               InputProps={{
@@ -161,7 +161,7 @@ const Login = ({ onLogin }) => {
               Demo Credentials:
             </Typography>
             <Typography variant="body2" color="text.secondary">
-              Username: admin<br />
+              Email: admin@echelon.com<br />
               Password: Admin123!
             </Typography>
           </Box>

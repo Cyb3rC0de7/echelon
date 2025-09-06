@@ -1,5 +1,5 @@
 const jwt = require('jsonwebtoken');
-const User = require('../models/User');
+const Employee = require('../models/Employee');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-fallback-secret-key';
 
@@ -13,28 +13,32 @@ const authenticateToken = async (req, res, next) => {
     }
 
     const decoded = jwt.verify(token, JWT_SECRET);
-    const user = await User.findByPk(decoded.userId, {
-      attributes: { exclude: ['password'] }
+    const employee = await Employee.findByPk(decoded.employeeId, {
+      attributes: { exclude: ['password'] },
+      include: [
+        {model: Employee, as: 'manager', attributes: ['id', 'name', 'surname', 'email']},
+        {model: Employee, as: 'subordinates', attributes: ['id', 'name', 'surname', 'email']}
+      ]
     });
 
-    if (!user || !user.isActive) {
-      return res.status(401).json({ error: 'Invalid or inactive user' });
+    if (!employee || !employee.isActive) {
+      return res.status(401).json({ error: 'Invalid or inactive employee' });
     }
 
-    req.user = user;
+    req.user = employee;
     next();
   } catch (error) {
     return res.status(403).json({ error: 'Invalid or expired token' });
   }
 };
 
-const requireRole = (roles) => {
+const requirePermission = (levels) => {
   return (req, res, next) => {
     if (!req.user) {
       return res.status(401).json({ error: 'Authentication required' });
     }
 
-    if (!roles.includes(req.user.role)) {
+    if (!levels.includes(req.user.permissionLevel)) {
       return res.status(403).json({ error: 'Insufficient permissions' });
     }
 
@@ -42,4 +46,23 @@ const requireRole = (roles) => {
   };
 };
 
-module.exports = { authenticateToken, requireRole, JWT_SECRET };
+const canAccessEmployee = (currentUser, targetEmployeeId) => {
+  // Admin and HR can access anyone
+  if (['admin', 'hr'].includes(currentUser.permissionLevel)) {
+    return true;
+  }
+
+  // Can access self
+  if (currentUser.id === targetEmployeeId) {
+    return true;
+  }
+
+  // Managers can access their subordinates
+  if (currentUser.permissionLevel === 'manager') {
+    return currentUser.subordinates?.some(sub => sub.id === targetEmployeeId) || false;
+  }
+
+  return false;
+};
+
+module.exports = { authenticateToken, requirePermission, canAccessEmployee, JWT_SECRET };

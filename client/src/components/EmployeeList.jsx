@@ -32,7 +32,6 @@ import { DataGrid } from '@mui/x-data-grid';
 import md5 from 'blueimp-md5'; //browser safe
 import { employeeApi, handleApiError } from '../services/api';
 import EmployeeForm from './EmployeeForm';
-import crypto from 'crypto';
 
 const EmployeeList = ({ refreshTrigger, onNotification, onRefresh }) => {
   const [employees, setEmployees] = useState([]);

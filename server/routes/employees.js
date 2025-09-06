@@ -1,46 +1,50 @@
-// server/routes/employees.js
 const express = require('express');
 const router = express.Router();
 const Employee = require('../models/Employee');
 const { Op } = require('sequelize');
 
-// GET /api/employees - Get all employees with optional search and filters
+// GET /api/employees - Get all employees with optional search and filters and permission filtering
 router.get('/', async (req, res) => {
   try {
     const { search, role, sortBy = 'name', sortOrder = 'ASC' } = req.query;
     
     let whereClause = {};
     
-    // Search functionality
+    // Apply permission-based filtering
+    if (req.user.permissionLevel === 'employee') {
+      // Employees can only see themselves and their manager chain
+      whereClause.id = req.user.id;
+    } else if (req.user.permissionLevel === 'manager') {
+      // Managers see their subordinates + themselves
+      const subordinateIds = req.user.subordinates?.map(s => s.id) || [];
+      whereClause.id = { [Op.in]: [...subordinateIds, req.user.id] };
+    }
+    // HR and Admin see everyone (no additional where clause)
+    
+    // Add search functionality
     if (search) {
       whereClause = {
-        [Op.or]: [
-          { name: { [Op.iLike]: `%${search}%` } },
-          { surname: { [Op.iLike]: `%${search}%` } },
-          { employeeNumber: { [Op.iLike]: `%${search}%` } },
-          { role: { [Op.iLike]: `%${search}%` } }
+        ...whereClause,
+        [Op.and]: [
+          whereClause,
+          {
+            [Op.or]: [
+              { name: { [Op.iLike]: `%${search}%` } },
+              { surname: { [Op.iLike]: `%${search}%` } },
+              { employeeNumber: { [Op.iLike]: `%${search}%` } },
+              { role: { [Op.iLike]: `%${search}%` } }
+            ]
+          }
         ]
       };
     }
     
-    // Role filter
-    if (role) {
-      whereClause.role = { [Op.iLike]: `%${role}%` };
-    }
-    
     const employees = await Employee.findAll({
       where: whereClause,
+      attributes: { exclude: ['password'] },
       include: [
-        { 
-          model: Employee, 
-          as: 'manager', 
-          attributes: ['id', 'name', 'surname', 'role']
-        },
-        { 
-          model: Employee, 
-          as: 'subordinates', 
-          attributes: ['id', 'name', 'surname', 'role']
-        }
+        { model: Employee, as: 'manager', attributes: ['id', 'name', 'surname', 'role'] },
+        { model: Employee, as: 'subordinates', attributes: ['id', 'name', 'surname', 'role'] }
       ],
       order: [[sortBy, sortOrder.toUpperCase()]]
     });
@@ -82,10 +86,10 @@ router.get('/:id', async (req, res) => {
 // POST /api/employees - Create new employee
 router.post('/', async (req, res) => {
   try {
-    const { employeeNumber, name, surname, email, birthDate, salary, role, managerId } = req.body;
+    const { employeeNumber, name, surname, email, password, birthDate, salary, role, managerId } = req.body;
     
     // Validate required fields
-    if (!employeeNumber || !name || !surname || !email || !birthDate || !salary || !role) {
+    if (!employeeNumber || !name || !surname || !email || !birthDate || !salary || !role || !password) {
       return res.status(400).json({ error: 'All required fields must be provided' });
     }
     
@@ -102,6 +106,7 @@ router.post('/', async (req, res) => {
       name,
       surname,
       email,
+      password,
       birthDate,
       salary,
       role,
@@ -138,6 +143,11 @@ router.put('/:id', async (req, res) => {
     
     const { employeeNumber, name, surname, email, birthDate, salary, role, managerId } = req.body;
     
+    const { canAccessEmployee } = require('../middleware/auth');
+    if (!canAccessEmployee(req.user, employee.id)) {
+      return res.status(403).json({ error: 'Insufficient permissions to update this employee' });
+    }
+
     // Check if manager exists and is not the employee themselves
     if (managerId) {
       if (managerId == req.params.id) {
@@ -155,6 +165,7 @@ router.put('/:id', async (req, res) => {
       name: name || employee.name,
       surname: surname || employee.surname,
       email: email || employee.email,
+      password: password || employee.password,
       birthDate: birthDate || employee.birthDate,
       salary: salary !== undefined ? salary : employee.salary,
       role: role || employee.role,

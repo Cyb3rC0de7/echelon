@@ -23,6 +23,7 @@ import EmployeeList from './components/EmployeeList';
 import EmployeeForm from './components/EmployeeForm';
 import HierarchyView from './components/HierarchyView';
 import Login from './components/Login';
+import PasswordChange from './components/PasswordChange';
 import { authApi } from './services/api';
 
 const theme = createTheme({
@@ -187,6 +188,7 @@ const AuthenticatedApp = () => {
             <Tab label="Employee List" />
             <Tab label="Add Employee" />
             <Tab label="Hierarchy View" />
+            <Tab label="Change Password" />
           </Tabs>
         </Box>
 
@@ -213,6 +215,12 @@ const AuthenticatedApp = () => {
           <HierarchyView 
             refreshTrigger={refreshTrigger}
             onNotification={showNotification}
+          />
+        </TabPanel>
+        <TabPanel value={currentTab} index={3}>
+          <PasswordChange 
+            onSuccess={(msg) => showNotification(msg)}
+            onError={(msg) => showNotification(msg, 'error')}
           />
         </TabPanel>
       </Container>

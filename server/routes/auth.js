@@ -1,80 +1,108 @@
 const express = require('express');
 const jwt = require('jsonwebtoken');
-const { Op } = require('sequelize');
-const User = require('../models/User');
 const { authenticateToken, JWT_SECRET } = require('../middleware/auth');
+const Employee = require('../models/Employee');
 const router = express.Router();
 
-// Register user (admin only - implement after first admin is created manually)
-router.post('/register', authenticateToken, async (req, res) => {
-  try {
-    if (req.user.role !== 'admin') {
-      return res.status(403).json({ error: 'Admin access required' });
-    }
-
-    const { username, email, password, role = 'employee' } = req.body;
-
-    if (!username || !email || !password) {
-      return res.status(400).json({ error: 'Username, email, and password are required' });
-    }
-
-    const user = await User.create({
-      username,
-      email,
-      password,
-      role
-    });
-
-    const { password: _, ...userWithoutPassword } = user.toJSON();
-    res.status(201).json({ user: userWithoutPassword });
-  } catch (error) {
-    if (error.name === 'SequelizeUniqueConstraintError') {
-      res.status(400).json({ error: 'Username or email already exists' });
-    } else {
-      res.status(500).json({ error: error.message });
-    }
-  }
-});
-
-// Login
+// POST api/auth/login
 router.post('/login', async (req, res) => {
   try {
-    const { username, password } = req.body;
+    const { email, password } = req.body;
 
-    if (!username || !password) {
-      return res.status(400).json({ error: 'Username and password are required' });
+    if (!email || !password) {
+      return res.status(400).json({ error: 'Email and password are required' });
     }
 
-    const user = await User.findOne({
-      where: {
-        [Op.or]: [
-          { username: username },
-          { email: username }
-        ]
-      }
+    const employee = await Employee.findOne({
+      where: { email: email, isActive: true }
     });
 
-    if (!user || !user.isActive) {
+    if (!employee) {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
-    const isValidPassword = await user.checkPassword(password);
+    const isValidPassword = await employee.checkPassword(password);
     if (!isValidPassword) {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
     const token = jwt.sign(
-      { userId: user.id, role: user.role },
+      { 
+        employeeId: employee.id, 
+        permissionLevel: employee.permissionLevel,
+        email: employee.email 
+      },
       JWT_SECRET,
       { expiresIn: '24h' }
     );
 
-    const { password: _, ...userWithoutPassword } = user.toJSON();
+    const { password: _, ...employeeWithoutPassword } = employee.toJSON();
     
     res.json({
       token,
-      user: userWithoutPassword,
+      user: employeeWithoutPassword,
       expiresIn: '24h'
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+//Change password
+router.put('/change-password', authenticateToken, async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ error: 'Current and new passwords are required' });
+    }
+
+    if (newPassword.length < 6) {
+      return res.status(400).json({ error: 'New password must be at least 6 characters' });
+    }
+
+    const employee = await Employee.findByPk(req.user.id);
+    
+    // Verify current password
+    const isValidPassword = await employee.checkPassword(currentPassword);
+    if (!isValidPassword) {
+      return res.status(401).json({ error: 'Current password is incorrect' });
+    }
+
+    // Update password
+    await employee.update({
+      password: newPassword, // Will be hashed by beforeUpdate hook
+      requiresPasswordReset: false
+    });
+
+    res.json({ message: 'Password updated successfully' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Reset password to default (admin only)
+router.put('/reset-password/:employeeId', authenticateToken, async (req, res) => {
+  try {
+    if (req.user.permissionLevel !== 'admin') {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    const employee = await Employee.findByPk(req.params.employeeId);
+    if (!employee) {
+      return res.status(404).json({ error: 'Employee not found' });
+    }
+
+    const defaultPassword = `${employee.name}${employee.employeeNumber}`;
+    
+    await employee.update({
+      password: defaultPassword, // Will be hashed by beforeUpdate hook
+      requiresPasswordReset: true
+    });
+
+    res.json({ 
+      message: 'Password reset successfully',
+      defaultPassword: defaultPassword // Send back so admin can inform user
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
