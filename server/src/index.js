@@ -8,9 +8,12 @@ const sequelize = require('../config/database');
 
 // Routes
 const employeeRoutes = require('../routes/employees');
+const User = require('../models/User');
+const { authenticateToken, requireRole } = require('../middleware/auth');
+const authRoutes = require('../routes/auth');
 
+// Use auth routes
 const app = express();
-const PORT = process.env.PORT || 5000;
 
 // Middleware
 app.use(cors());
@@ -21,8 +24,12 @@ app.get('/api/health', (req, res) => {
   res.json({ message: 'Echelon API is running!', timestamp: new Date().toISOString() });
 });
 
+
+app.use('/api/auth', authRoutes);
+const PORT = process.env.PORT || 5000;
+
 // Employee routes
-app.use('/api/employees', employeeRoutes);
+app.use('/api/employees', authenticateToken, employeeRoutes);
 
 // Serve static files from React build (for production)
 if (process.env.NODE_ENV === 'production') {

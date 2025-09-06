@@ -9,6 +9,37 @@ const api = axios.create({
   },
 });
 
+const authApi = {
+  login: (credentials) => api.post('/auth/login', credentials),
+  register: (userData) => api.post('/auth/register', userData),
+  logout: () => api.post('/auth/logout'), // Client-side token removal
+  getMe: () => api.get('/auth/me'),
+};
+
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem('authToken');
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+
+  return config;
+});
+
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    // Handle token expiration
+    if (error.response && error.response.status === 401) {
+      localStorage.removeItem('authToken');
+      localStorage.removeItem('user');
+      window.location.href = '/login';
+    }
+    return Promise.reject(error);
+  }
+);
+
+export { authApi };
+
 // Employee API calls
 export const employeeApi = {
   // Get all employees with optional filters
@@ -47,4 +78,4 @@ export const handleApiError = (error) => {
   }
 };
 
-export default api;
+export { api };

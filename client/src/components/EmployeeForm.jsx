@@ -218,7 +218,7 @@ const EmployeeForm = ({ employee = null, onSuccess, onError, onCancel }) => {
               }}
             />
           </Grid>
-          <Grid>
+          <Grid sx={{ minWidth: 200 }}>
             <FormControl fullWidth>
               <InputLabel>Role</InputLabel>
               <Select
@@ -234,7 +234,7 @@ const EmployeeForm = ({ employee = null, onSuccess, onError, onCancel }) => {
               </Select>
             </FormControl>
           </Grid>
-          <Grid>
+          <Grid sx={{ minWidth: 200 }}>
             <FormControl fullWidth disabled={loading}>
               <InputLabel>Manager</InputLabel>
               <Select

@@ -32,6 +32,7 @@ import { DataGrid } from '@mui/x-data-grid';
 import md5 from 'blueimp-md5'; //browser safe
 import { employeeApi, handleApiError } from '../services/api';
 import EmployeeForm from './EmployeeForm';
+import crypto from 'crypto';
 
 const EmployeeList = ({ refreshTrigger, onNotification, onRefresh }) => {
   const [employees, setEmployees] = useState([]);
@@ -77,6 +78,7 @@ const EmployeeList = ({ refreshTrigger, onNotification, onRefresh }) => {
   const getGravatarUrl = (email, size = 40) => {
     if (!email) return `https://www.gravatar.com/avatar/?s=${size}&d=identicon`;
     const hash = md5(email.trim().toLowerCase());
+    //const hash = crypto.createHash('sha256').update(email.trim().toLowerCase()).digest('hex'); // Doesn't work in browser
     return `https://www.gravatar.com/avatar/${hash}?s=${size}&d=identicon`;
   };
 
