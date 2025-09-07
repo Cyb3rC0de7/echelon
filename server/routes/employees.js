@@ -1,10 +1,11 @@
 const express = require('express');
 const router = express.Router();
 const Employee = require('../models/Employee');
+const { authenticateToken, requirePermission, canAccessEmployee } = require('../middleware/auth');
 const { Op } = require('sequelize');
 
 // GET /api/employees - Get all employees with optional search and filters and permission filtering
-router.get('/', async (req, res) => {
+router.get('/', authenticateToken, async (req, res) => {
   try {
     const { search, role, sortBy = 'name', sortOrder = 'ASC' } = req.query;
     
@@ -56,7 +57,7 @@ router.get('/', async (req, res) => {
 });
 
 // GET /api/employees/:id - Get single employee
-router.get('/:id', async (req, res) => {
+router.get('/:id', authenticateToken, async (req, res) => {
   try {
     const employee = await Employee.findByPk(req.params.id, {
       include: [
@@ -84,12 +85,12 @@ router.get('/:id', async (req, res) => {
 });
 
 // POST /api/employees - Create new employee
-router.post('/', async (req, res) => {
+router.post('/', authenticateToken, async (req, res) => {
   try {
-    const { employeeNumber, name, surname, email, password, birthDate, salary, role, managerId } = req.body;
+    const { employeeNumber, name, surname, email, birthDate, salary, role, managerId } = req.body;
     
     // Validate required fields
-    if (!employeeNumber || !name || !surname || !email || !birthDate || !salary || !role || !password) {
+    if (!employeeNumber || !name || !surname || !email || !birthDate || !salary || !role) {
       return res.status(400).json({ error: 'All required fields must be provided' });
     }
     
@@ -106,7 +107,6 @@ router.post('/', async (req, res) => {
       name,
       surname,
       email,
-      password,
       birthDate,
       salary,
       role,
@@ -133,7 +133,7 @@ router.post('/', async (req, res) => {
 });
 
 // PUT /api/employees/:id - Update employee
-router.put('/:id', async (req, res) => {
+router.put('/:id', authenticateToken, async (req, res) => {
   try {
     const employee = await Employee.findByPk(req.params.id);
     
@@ -141,7 +141,7 @@ router.put('/:id', async (req, res) => {
       return res.status(404).json({ error: 'Employee not found' });
     }
     
-    const { employeeNumber, name, surname, email, birthDate, salary, role, managerId } = req.body;
+    const { employeeNumber, name, surname, email, birthDate, salary, role, permissionLevel, isActive, managerId } = req.body;
     
     const { canAccessEmployee } = require('../middleware/auth');
     if (!canAccessEmployee(req.user, employee.id)) {
@@ -165,10 +165,11 @@ router.put('/:id', async (req, res) => {
       name: name || employee.name,
       surname: surname || employee.surname,
       email: email || employee.email,
-      password: password || employee.password,
       birthDate: birthDate || employee.birthDate,
       salary: salary !== undefined ? salary : employee.salary,
       role: role || employee.role,
+      permissionLevel: permissionLevel || employee.permissionLevel,
+      isActive: isActive || employee.isActive,
       managerId: managerId !== undefined ? managerId : employee.managerId
     });
     
@@ -193,7 +194,7 @@ router.put('/:id', async (req, res) => {
 });
 
 // PUT /api/employees/:id/manager - Update employee's manager
-router.put('/:id/manager', async (req, res) => {
+router.put('/:id/manager', authenticateToken, async (req, res) => {
   try {
     const employee = await Employee.findByPk(req.params.id);
     const { managerId } = req.body;
@@ -226,7 +227,7 @@ router.put('/:id/manager', async (req, res) => {
 });
 
 // DELETE /api/employees/:id - Delete employee
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', authenticateToken, async (req, res) => {
   try {
     const employee = await Employee.findByPk(req.params.id);
     
@@ -250,7 +251,7 @@ router.delete('/:id', async (req, res) => {
 });
 
 // GET /api/employees/hierarchy - Get full organization hierarchy
-router.get('/hierarchy/tree', async (req, res) => {
+router.get('/hierarchy/tree', authenticateToken, async (req, res) => {
   try {
     // Get all employees
     const employees = await Employee.findAll({

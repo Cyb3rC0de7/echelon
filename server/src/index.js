@@ -6,17 +6,12 @@ require('dotenv').config();
 // Database
 const sequelize = require('../config/database');
 
-// Routes
-const employeeRoutes = require('../routes/employees');
-const { authenticateToken } = require('../middleware/auth');
-const authRoutes = require('../routes/auth');
-
-// Use auth routes
 const app = express();
 
 // Middleware
 app.use(cors());
 app.use(express.json());
+const { authenticateToken } = require('../middleware/auth');
 
 const PORT = process.env.PORT || 5000;
 
@@ -26,9 +21,14 @@ app.get('/api/health', (req, res) => {
 });
 
 // Auth routes
+const authRoutes = require('../routes/auth');
 app.use('/api/auth', authRoutes);
 // Employee routes
+const employeeRoutes = require('../routes/employees');
 app.use('/api/employees', authenticateToken, employeeRoutes);
+// Admin routes
+const adminRoutes = require('../routes/admin');
+app.use('/api/admin', authenticateToken, adminRoutes);
 
 // Serve static files from React build (for production)
 if (process.env.NODE_ENV === 'production') {

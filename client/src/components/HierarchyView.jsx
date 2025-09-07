@@ -20,18 +20,13 @@ import { hierarchy, tree } from 'd3-hierarchy';
 import { ZoomIn, ZoomOut, FitScreen, PanTool } from '@mui/icons-material';
 import md5 from 'blueimp-md5';
 import { employeeApi, handleApiError } from '../services/api';
+import { useAuth } from '../App';
 
-// Custom wrapper to provide DnD context
-const DndProviderWrapper = ({ children }) => (
-  <DndProvider backend={HTML5Backend}>
-    {children}
-  </DndProvider>
-);
-
-const EmployeeNode = ({ employee, onDrop, onSelect, position, scale }) => {
+const EmployeeNode = ({ employee, onDrop, onSelect, position, scale, canDrag, canDrop }) => {
   const [{ isDragging }, drag] = useDrag(() => ({
     type: 'employee',
     item: { id: employee.id, name: employee.name, surname: employee.surname },
+    canDrag: () => canDrag,
     collect: (monitor) => ({
       isDragging: monitor.isDragging(),
     }),
@@ -39,9 +34,10 @@ const EmployeeNode = ({ employee, onDrop, onSelect, position, scale }) => {
 
   const [{ isOver }, drop] = useDrop(() => ({
     accept: 'employee',
-    drop: (item) => onDrop(item.id, employee.id),
+    drop: (item) => canDrop && onDrop(item.id, employee.id),
+    canDrop: () => canDrop,
     collect: (monitor) => ({
-      isOver: monitor.isOver(),
+      isOver: monitor.isOver() && monitor.canDrop(),
     }),
   }));
 
@@ -54,12 +50,12 @@ const EmployeeNode = ({ employee, onDrop, onSelect, position, scale }) => {
   return (
     <Box
       ref={(node) => {
-        drag(node);
-        drop(node);
+        if (canDrag) drag(node);
+        if (canDrop) drop(node);
       }}
       sx={{
         position: 'absolute',
-        left: position.x - 90, // Center the node
+        left: position.x - 90,
         top: position.y - 30,
         opacity: isDragging ? 0.5 : 1,
         border: isOver ? '2px dashed #1976d2' : '2px solid #e0e0e0',
@@ -67,7 +63,7 @@ const EmployeeNode = ({ employee, onDrop, onSelect, position, scale }) => {
         p: 1.5,
         bgcolor: 'background.paper',
         minWidth: 180,
-        cursor: 'move',
+        cursor: canDrag ? 'move' : 'pointer',
         transform: `scale(${isDragging ? 0.95 : 1})`,
         transition: 'all 0.2s ease',
         zIndex: isOver ? 10 : 1,
@@ -102,6 +98,7 @@ const EmployeeNode = ({ employee, onDrop, onSelect, position, scale }) => {
 };
 
 const HierarchyView = ({ refreshTrigger, onNotification }) => {
+  const { user } = useAuth();
   const [hierarchyData, setHierarchyData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedEmployee, setSelectedEmployee] = useState(null);
@@ -114,6 +111,30 @@ const HierarchyView = ({ refreshTrigger, onNotification }) => {
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const containerRef = useRef(null);
   const svgRef = useRef(null);
+
+  // Permission checks
+  const isAdmin = user?.permissionLevel === 'admin';
+  const isHR = user?.permissionLevel === 'hr';
+  const isManager = user?.permissionLevel === 'manager';
+
+  // Check if user can see salary
+  const canSeeSalary = (employee) => {
+    return isAdmin || isHR || employee.id === user?.id;
+  };
+
+  // Check if user can drag employees (change their manager)
+  const canDragEmployee = (employee) => {
+    if (isAdmin || isHR) return true;
+    if (isManager && employee.manager?.id === user?.id) return true;
+    return false;
+  };
+
+  // Check if user can accept drops (become a manager)
+  const canDropOnEmployee = (employee) => {
+    if (isAdmin || isHR) return true;
+    if (isManager) return true;
+    return false;
+  };
 
   const fetchHierarchy = async () => {
     try {
@@ -137,17 +158,14 @@ const HierarchyView = ({ refreshTrigger, onNotification }) => {
     }
 
     try {
-      // Convert to d3 hierarchy - take first root node
       const root = hierarchy(data[0]);
       
-      // Configure tree layout
       const treeLayout = tree()
-        .nodeSize([200, 150]) // Horizontal, Vertical spacing
+        .nodeSize([200, 150])
         .separation((a, b) => (a.parent === b.parent ? 1 : 1.2));
 
       const treeData = treeLayout(root);
       
-      // Get all nodes and links
       const nodes = treeData.descendants();
       const links = treeData.links();
       
@@ -173,7 +191,6 @@ const HierarchyView = ({ refreshTrigger, onNotification }) => {
     const delta = e.deltaY > 0 ? 0.9 : 1.1;
     const newScale = Math.max(0.3, Math.min(3, scale * delta));
     
-    // Zoom towards mouse position
     const factor = newScale / scale;
     const newOffsetX = mouseX - (mouseX - offset.x) * factor;
     const newOffsetY = mouseY - (mouseY - offset.y) * factor;
@@ -183,9 +200,8 @@ const HierarchyView = ({ refreshTrigger, onNotification }) => {
   }, [scale, offset]);
 
   const handleMouseDown = useCallback((e) => {
-    if (e.button !== 0) return; // Only left mouse button
+    if (e.button !== 0) return;
     
-    // Check if clicking on SVG area or container, not on employee nodes
     if (e.target === containerRef.current || e.target === svgRef.current) {
       setIsDragging(true);
       setDragStart({ 
@@ -209,7 +225,6 @@ const HierarchyView = ({ refreshTrigger, onNotification }) => {
     setIsDragging(false);
   }, []);
 
-  // Setup event listeners
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
@@ -223,7 +238,6 @@ const HierarchyView = ({ refreshTrigger, onNotification }) => {
     };
   }, [handleWheel, handleMouseDown]);
 
-  // Global mouse events for dragging
   useEffect(() => {
     if (isDragging) {
       document.addEventListener('mousemove', handleMouseMove);
@@ -241,6 +255,13 @@ const HierarchyView = ({ refreshTrigger, onNotification }) => {
   const handleDrop = async (draggedId, targetId) => {
     if (draggedId === targetId) {
       setSnackbar({ open: true, message: 'Cannot assign self as manager' });
+      return;
+    }
+
+    // Find the dragged employee to check permissions
+    const draggedEmployee = nodes.find(node => node.data.id === draggedId)?.data;
+    if (!draggedEmployee || !canDragEmployee(draggedEmployee)) {
+      setSnackbar({ open: true, message: 'You do not have permission to move this employee' });
       return;
     }
 
@@ -291,7 +312,7 @@ const HierarchyView = ({ refreshTrigger, onNotification }) => {
   }
 
   return (
-    <DndProviderWrapper>
+    <DndProvider backend={HTML5Backend}>
       <Box sx={{ p: 2, height: '100vh', display: 'flex', flexDirection: 'column' }}>
         {/* Header */}
         <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
@@ -315,7 +336,8 @@ const HierarchyView = ({ refreshTrigger, onNotification }) => {
         </Box>
         
         <Typography variant="body2" color="text.secondary" gutterBottom>
-          Drag employees to change their manager. Scroll to zoom, click and drag to pan.
+          {(isAdmin || isHR || isManager) && 'Drag employees to change their manager. '}
+          Scroll to zoom, click and drag to pan.
         </Typography>
 
         {/* Main Content */}
@@ -386,6 +408,8 @@ const HierarchyView = ({ refreshTrigger, onNotification }) => {
                     onSelect={handleSelect}
                     position={{ x: node.x, y: node.y }}
                     scale={scale}
+                    canDrag={canDragEmployee(node.data)}
+                    canDrop={canDropOnEmployee(node.data)}
                   />
                 ))}
               </Box>
@@ -439,7 +463,7 @@ const HierarchyView = ({ refreshTrigger, onNotification }) => {
                     </Typography>
                   )}
 
-                  {selectedEmployee.salary && (
+                  {canSeeSalary(selectedEmployee) && selectedEmployee.salary && (
                     <Typography variant="body2" gutterBottom>
                       <strong>Salary:</strong> R
                       {Number(selectedEmployee.salary).toLocaleString()}
@@ -452,6 +476,21 @@ const HierarchyView = ({ refreshTrigger, onNotification }) => {
                       {selectedEmployee.manager.surname}
                     </Typography>
                   )}
+
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                    <Typography variant="body2" component="span">
+                      <strong>Permission Level:</strong>
+                    </Typography>
+                    <Chip 
+                      label={selectedEmployee.permissionLevel} 
+                      size="small" 
+                      color={
+                        selectedEmployee.permissionLevel === 'admin' ? 'error' :
+                        selectedEmployee.permissionLevel === 'hr' ? 'warning' :
+                        selectedEmployee.permissionLevel === 'manager' ? 'info' : 'default'
+                      }
+                    />
+                  </Box>
                 </CardContent>
               </Card>
             ) : (
@@ -469,7 +508,7 @@ const HierarchyView = ({ refreshTrigger, onNotification }) => {
           message={snackbar.message}
         />
       </Box>
-    </DndProviderWrapper>
+    </DndProvider>
   );
 };
 

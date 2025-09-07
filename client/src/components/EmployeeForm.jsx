@@ -12,13 +12,17 @@ import {
   MenuItem,
   InputAdornment,
   CircularProgress,
-  Alert
+  Alert,
+  Switch,
+  FormControlLabel
 } from '@mui/material';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import dayjs from 'dayjs';
 import { employeeApi, handleApiError } from '../services/api';
+import { useAuth } from '../App';
 
 const EmployeeForm = ({ employee = null, onSuccess, onError, onCancel }) => {
+  const { user } = useAuth();
   const [formData, setFormData] = useState({
     employeeNumber: '',
     name: '',
@@ -28,7 +32,8 @@ const EmployeeForm = ({ employee = null, onSuccess, onError, onCancel }) => {
     salary: '',
     role: '',
     permissionLevel: 'employee',
-    managerId: ''
+    managerId: '',
+    isActive: true
   });
 
   const [employees, setEmployees] = useState([]);
@@ -61,12 +66,49 @@ const EmployeeForm = ({ employee = null, onSuccess, onError, onCancel }) => {
     'Intern'
   ];
 
+  // Permission checks
+  const isAdmin = user?.permissionLevel === 'admin';
+  const isHR = user?.permissionLevel === 'hr';
+  const isManager = user?.permissionLevel === 'manager';
+  const isEmployee = user?.permissionLevel === 'employee';
+  
+  // Field visibility and edit permissions
+  const canCreateEmployee = isAdmin || isHR;
+  const canEditBasicInfo = isAdmin || isHR || (isManager && employee?.manager?.id === user?.id) || (isEmployee && employee?.id === user?.id);
+  const canEditRole = isAdmin || isHR;
+  const canEditSalary = isAdmin || isHR;
+  const canEditPermissionLevel = isAdmin;
+  const canEditAdminLevel = isAdmin; // Only admins can create/edit other admins
+  const canEditManager = isAdmin || isHR || (isManager && employee?.manager?.id === user?.id);
+  const canEditStatus = isAdmin;
+
+  // Check if user can manage this employee
+  const canManageEmployee = (emp) => {
+    if (isAdmin || isHR) return true;
+    if (isManager && emp?.manager?.id === user?.id) return true;
+    if (isEmployee && emp?.id === user?.id) return true;
+    return false;
+  };
+
   useEffect(() => {
     const fetchEmployees = async () => {
       try {
         setLoading(true);
         const response = await employeeApi.getAll();
-        setEmployees(response.data);
+        // Filter employees based on permissions for manager selection
+        let filteredEmployees = response.data;
+        
+        if (isManager && !isAdmin && !isHR) {
+          // Managers can only see employees they manage and their peers/superiors
+          filteredEmployees = response.data.filter(emp => 
+            emp.permissionLevel === 'admin' ||
+            emp.permissionLevel === 'hr' ||
+            emp.permissionLevel === 'manager' ||
+            emp.manager?.id === user?.id
+          );
+        }
+        
+        setEmployees(filteredEmployees);
       } catch (error) {
         onError(handleApiError(error));
       } finally {
@@ -84,13 +126,19 @@ const EmployeeForm = ({ employee = null, onSuccess, onError, onCancel }) => {
         birthDate: employee.birthDate ? dayjs(employee.birthDate) : null,
         salary: employee.salary || '',
         role: employee.role || '',
-        managerId: employee.manager?.id || ''
+        permissionLevel: employee.permissionLevel || 'employee',
+        managerId: employee.manager?.id || '',
+        isActive: employee.isActive !== undefined ? employee.isActive : true
       });
     }
-  }, [employee, onError]);
+  }, [employee, onError, isAdmin, isHR, isManager, user?.id]);
 
   const handleChange = (field) => (event) => {
     setFormData((prev) => ({ ...prev, [field]: event.target.value }));
+  };
+
+  const handleSwitchChange = (field) => (event) => {
+    setFormData((prev) => ({ ...prev, [field]: event.target.checked }));
   };
 
   const handleDateChange = (date) => {
@@ -104,18 +152,25 @@ const EmployeeForm = ({ employee = null, onSuccess, onError, onCancel }) => {
     if (!formData.surname.trim()) errors.push('Surname is required');
     if (!formData.email.trim()) errors.push('Email is required');
     if (!formData.birthDate) errors.push('Birth date is required');
-    if (!formData.salary || parseFloat(formData.salary) <= 0) errors.push('Valid salary is required');
+    if (canEditSalary && (!formData.salary || parseFloat(formData.salary) <= 0)) {
+      errors.push('Valid salary is required');
+    }
     if (!formData.role.trim()) errors.push('Role is required');
 
-    //Email validation
+    // Email validation
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (formData.email && !emailRegex.test(formData.email)) {
       errors.push('Valid email address is required');
     }
 
-    //Prevent employee being their own manager
+    // Prevent employee being their own manager
     if (formData.managerId && employee && formData.managerId === employee.id) {
       errors.push('Employee cannot be their own manager');
+    }
+
+    // HR cannot set permission level to admin
+    if (isHR && !isAdmin && formData.permissionLevel === 'admin') {
+      errors.push('HR cannot assign admin privileges');
     }
 
     return errors;
@@ -135,15 +190,51 @@ const EmployeeForm = ({ employee = null, onSuccess, onError, onCancel }) => {
       const payload = {
         ...formData,
         birthDate: formData.birthDate ? formData.birthDate.toISOString() : null,
-        salary: parseFloat(formData.salary),
+        salary: formData.salary ? parseFloat(formData.salary) : undefined,
         managerId: formData.managerId || null
       };
 
+      // Only include fields the user has permission to edit
+      const finalPayload = {};
+      
+      if (canEditBasicInfo) {
+        finalPayload.employeeNumber = payload.employeeNumber;
+        finalPayload.name = payload.name;
+        finalPayload.surname = payload.surname;
+        finalPayload.email = payload.email;
+        finalPayload.birthDate = payload.birthDate;
+      }
+      
+      if (canEditSalary && payload.salary !== undefined) {
+        finalPayload.salary = payload.salary;
+      }
+      
+      if (canEditRole) {
+        finalPayload.role = payload.role;
+      }
+      
+      if (canEditPermissionLevel) {
+        // HR cannot set admin level
+        if (isHR && !isAdmin && payload.permissionLevel === 'admin') {
+          // Skip this field
+        } else {
+          finalPayload.permissionLevel = payload.permissionLevel;
+        }
+      }
+      
+      if (canEditStatus) {
+        finalPayload.isActive = payload.isActive;
+      }
+      
+      if (canEditManager) {
+        finalPayload.managerId = payload.managerId;
+      }
+
       if (employee) {
-        await employeeApi.update(employee.id, payload);
+        await employeeApi.update(employee.id, finalPayload);
         onSuccess('Employee updated successfully!');
       } else {
-        await employeeApi.create(payload);
+        await employeeApi.create(finalPayload);
         onSuccess('Employee created successfully!');
       }
     } catch (error) {
@@ -152,6 +243,24 @@ const EmployeeForm = ({ employee = null, onSuccess, onError, onCancel }) => {
       setSubmitting(false);
     }
   };
+
+  // Don't allow non-authorized users to create employees
+  if (!employee && !canCreateEmployee) {
+    return (
+      <Alert severity="error">
+        You don't have permission to create employees.
+      </Alert>
+    );
+  }
+
+  // Don't allow editing employees you don't manage
+  if (employee && !canManageEmployee(employee)) {
+    return (
+      <Alert severity="error">
+        You don't have permission to edit this employee.
+      </Alert>
+    );
+  }
 
   return (
     <Paper sx={{ p: 3 }}>
@@ -175,7 +284,7 @@ const EmployeeForm = ({ employee = null, onSuccess, onError, onCancel }) => {
               fullWidth
               value={formData.employeeNumber}
               onChange={handleChange('employeeNumber')}
-              disabled={!!employee}
+              disabled={!!employee || !canEditBasicInfo}
             />
           </Grid>
           <Grid>
@@ -184,6 +293,7 @@ const EmployeeForm = ({ employee = null, onSuccess, onError, onCancel }) => {
               fullWidth
               value={formData.name}
               onChange={handleChange('name')}
+              disabled={!canEditBasicInfo}
             />
           </Grid>
           <Grid>
@@ -192,6 +302,7 @@ const EmployeeForm = ({ employee = null, onSuccess, onError, onCancel }) => {
               fullWidth
               value={formData.surname}
               onChange={handleChange('surname')}
+              disabled={!canEditBasicInfo}
             />
           </Grid>
           <Grid>
@@ -201,6 +312,7 @@ const EmployeeForm = ({ employee = null, onSuccess, onError, onCancel }) => {
               value={formData.email}
               onChange={handleChange('email')}
               type="email"
+              disabled={!canEditBasicInfo}
             />
           </Grid>
           <Grid>
@@ -208,28 +320,32 @@ const EmployeeForm = ({ employee = null, onSuccess, onError, onCancel }) => {
               label="Birth Date"
               value={formData.birthDate}
               onChange={handleDateChange}
+              disabled={!canEditBasicInfo}
               slotProps={{ textField: { fullWidth: true } }}
             />
           </Grid>
+          {canEditSalary && (
+            <Grid>
+              <TextField
+                label="Salary"
+                fullWidth
+                type="number"
+                value={formData.salary}
+                onChange={handleChange('salary')}
+                InputProps={{
+                  startAdornment: <InputAdornment position="start">R</InputAdornment>
+                }}
+              />
+            </Grid>
+          )}
           <Grid>
-            <TextField
-              label="Salary"
-              fullWidth
-              type="number"
-              value={formData.salary}
-              onChange={handleChange('salary')}
-              InputProps={{
-                startAdornment: <InputAdornment position="start">$</InputAdornment>
-              }}
-            />
-          </Grid>
-          <Grid sx={{ minWidth: 200 }}>
-            <FormControl fullWidth>
+            <FormControl sx={{ minWidth: 120 }} fullWidth disabled={loading}>
               <InputLabel>Role</InputLabel>
               <Select
                 value={formData.role}
                 label="Role"
                 onChange={handleChange('role')}
+                disabled={!canEditRole}
               >
                 {roles.map((role) => (
                   <MenuItem key={role} value={role}>
@@ -237,49 +353,90 @@ const EmployeeForm = ({ employee = null, onSuccess, onError, onCancel }) => {
                   </MenuItem>
                 ))}
               </Select>
+              {!canEditRole && (
+                <Typography variant="caption" color="text.secondary">
+                  You don't have permission to change roles
+                </Typography>
+              )}
             </FormControl>
           </Grid>
-          <Grid sx={{ minWidth: 200 }}>
-            <FormControl fullWidth>
-              <InputLabel>Permission Level</InputLabel>
-              <Select
-                value={formData.permissionLevel}
-                label="Permission Level"
-                onChange={handleChange('permissionLevel')}
-                disabled={user?.permissionLevel !== 'admin'} // Only admin can change permission level
-              >
-                {['employee', 'manager', 'hr', 'admin'].map((level) => (
-                  <MenuItem key={level} value={level}>
-                    {level}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-          </Grid>
-          <Grid sx={{ minWidth: 200 }}>
-            <FormControl fullWidth disabled={loading}>
+          <Grid>
+            <FormControl sx={{ minWidth: 120 }} fullWidth disabled={loading}>
               <InputLabel>Manager</InputLabel>
               <Select
                 value={formData.managerId}
                 label="Manager"
                 onChange={handleChange('managerId')}
+                disabled={!canEditManager}
               >
                 <MenuItem value="">
                   <em>No Manager</em>
                 </MenuItem>
                 {employees
                   .filter((emp) => !employee || emp.id !== employee.id)
+                  .filter((emp) => {
+                    // Prevent circular management and ensure proper hierarchy
+                    if (employee) {
+                      // Don't allow selecting subordinates as managers
+                      return emp.manager?.id !== employee.id;
+                    }
+                    return true;
+                  })
                   .map((emp) => (
                     <MenuItem key={emp.id} value={emp.id}>
                       {emp.name} {emp.surname} ({emp.employeeNumber})
                     </MenuItem>
                   ))}
               </Select>
+              {!canEditManager && (
+                <Typography variant="caption" color="text.secondary">
+                  You don't have permission to assign managers
+                </Typography>
+              )}
             </FormControl>
           </Grid>
+
+          {/* Admin-only fields */}
+          {canEditPermissionLevel && (
+            <Grid>
+              <FormControl fullWidth>
+                <InputLabel>Permission Level</InputLabel>
+                <Select
+                  value={formData.permissionLevel}
+                  label="Permission Level"
+                  fullWidth
+                  onChange={handleChange('permissionLevel')}
+                >
+                  <MenuItem value="employee">Employee</MenuItem>
+                  <MenuItem value="manager">Manager</MenuItem>
+                  <MenuItem value="hr">HR</MenuItem>
+                  {canEditAdminLevel && <MenuItem value="admin">Admin</MenuItem>}
+                </Select>
+                {isHR && !isAdmin && (
+                  <Typography variant="caption" color="text.secondary">
+                    HR cannot assign admin privileges
+                  </Typography>
+                )}
+              </FormControl>
+            </Grid>
+          )}
+          {canEditStatus && (
+            <Grid>
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={formData.isActive}
+                    onChange={handleSwitchChange('isActive')}
+                  />
+                }
+                label="Active Employee"
+              />
+            </Grid>
+          )}
         </Grid>
+
         <Box mt={3} display="flex" justifyContent="flex-end" gap={2}>
-          {employee && (
+          {employee && onCancel && (
             <Button variant="outlined" onClick={onCancel}>
               Cancel
             </Button>

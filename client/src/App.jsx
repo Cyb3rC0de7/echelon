@@ -127,6 +127,10 @@ const AuthenticatedApp = () => {
   });
   const [refreshTrigger, setRefreshTrigger] = useState(0);
 
+  // Permission checks
+  const isAdmin = user?.permissionLevel === 'admin';
+  const canCreateEmployee = isAdmin || user?.permissionLevel === 'hr';
+
   const handleTabChange = (event, newValue) => {
     setCurrentTab(newValue);
   };
@@ -160,6 +164,24 @@ const AuthenticatedApp = () => {
       });
   }, []);
 
+  // Calculate tab indices dynamically
+  const getTabIndex = (tabName) => {
+    const tabs = ['list', 'add', 'hierarchy', 'password', 'admin'];
+    let index = 0;
+    
+    for (let i = 0; i < tabs.length; i++) {
+      if (tabs[i] === tabName) return index;
+      
+      // Only count tabs that should be visible
+      if (tabs[i] === 'list') index++;
+      else if (tabs[i] === 'add' && canCreateEmployee) index++;
+      else if (tabs[i] === 'hierarchy') index++;
+      else if (tabs[i] === 'password') index++;
+    }
+    
+    return index;
+  };
+
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
@@ -170,7 +192,7 @@ const AuthenticatedApp = () => {
             Echelon - Employee Hierarchy Manager
           </Typography>
           <Typography variant="body2" sx={{ mr: 2 }}>
-            Welcome, {user?.username} ({user?.role})
+            Welcome, {user?.name || user?.username} ({user?.permissionLevel})
           </Typography>
           <Button 
             color="inherit" 
@@ -186,12 +208,13 @@ const AuthenticatedApp = () => {
         <Box sx={{ borderBottom: 1, borderColor: 'divider', mt: 2 }}>
           <Tabs value={currentTab} onChange={handleTabChange}>
             <Tab label="Employee List" />
-            <Tab label="Add Employee" />
+            {canCreateEmployee && <Tab label="Add Employee" />}
             <Tab label="Hierarchy View" />
             <Tab label="Change Password" />
           </Tabs>
         </Box>
 
+        {/* Employee List - Always index 0 */}
         <TabPanel value={currentTab} index={0}>
           <EmployeeList 
             refreshTrigger={refreshTrigger}
@@ -200,24 +223,30 @@ const AuthenticatedApp = () => {
           />
         </TabPanel>
 
-        <TabPanel value={currentTab} index={1}>
-          <EmployeeForm 
-            onSuccess={() => {
-              showNotification('Employee created successfully!');
-              triggerRefresh();
-              setCurrentTab(0); // Switch back to list
-            }}
-            onError={(message) => showNotification(message, 'error')}
-          />
-        </TabPanel>
+        {/* Add Employee - Dynamic index based on permissions */}
+        {canCreateEmployee && (
+          <TabPanel value={currentTab} index={getTabIndex('add')}>
+            <EmployeeForm 
+              onSuccess={() => {
+                showNotification('Employee created successfully!');
+                triggerRefresh();
+                setCurrentTab(0); // Switch back to list
+              }}
+              onError={(message) => showNotification(message, 'error')}
+            />
+          </TabPanel>
+        )}
 
-        <TabPanel value={currentTab} index={2}>
+        {/* Hierarchy View */}
+        <TabPanel value={currentTab} index={getTabIndex('hierarchy')}>
           <HierarchyView 
             refreshTrigger={refreshTrigger}
             onNotification={showNotification}
           />
         </TabPanel>
-        <TabPanel value={currentTab} index={3}>
+
+        {/* Change Password */}
+        <TabPanel value={currentTab} index={getTabIndex('password')}>
           <PasswordChange 
             onSuccess={(msg) => showNotification(msg)}
             onError={(msg) => showNotification(msg, 'error')}

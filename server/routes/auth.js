@@ -111,8 +111,22 @@ router.put('/reset-password/:employeeId', authenticateToken, async (req, res) =>
 
 // Get current user
 router.get('/me', authenticateToken, async (req, res) => {
-  const { password, ...userWithoutPassword } = req.user.toJSON();
-  res.json({ user: userWithoutPassword });
+  try {
+    const employee = await Employee.findByPk(req.user.id, {
+      attributes: { exclude: ['password'] },
+      include: [
+        { model: Employee, as: 'manager', attributes: ['id', 'name', 'surname', 'email'] }
+      ]
+    });
+    
+    if (!employee) {
+      return res.status(404).json({ error: 'Employee not found' });
+    }
+    
+    res.json({ user: employee });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 });
 
 // Logout (client-side token removal)

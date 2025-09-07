@@ -73,8 +73,8 @@ const Employee = sequelize.define('Employee', {
     defaultValue: true // New employees must reset password on first login
   },
   permissionLevel: {
-    type: DataTypes.ENUM('user', 'manager', 'admin'),
-    defaultValue: 'user'
+    type: DataTypes.ENUM('employee', 'manager', 'hr', 'admin'),
+    defaultValue: 'employee'
   },
   isActive: {
     type: DataTypes.BOOLEAN,
@@ -109,7 +109,7 @@ Employee.prototype.checkPassword = async function(password) {
 };
 
 const generateDefaultPassword = () => {
-  return 'ChangeMe123!';
+  return 'TempPass123!';
 }
 
 // Validation to prevent self-management
