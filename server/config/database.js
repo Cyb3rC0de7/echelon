@@ -19,7 +19,7 @@ if (process.env.NODE_ENV === 'production') {
 } else {
   // Local development configuration
   sequelize = new Sequelize(
-    process.env.DATABASE_URL || 'postgresql://postgres:QQiKK20212!@localhost:5432/echelon_dev',
+    process.env.DATABASE_URL,
     {
       dialect: 'postgres',
       logging: false, // Show SQL queries in development
