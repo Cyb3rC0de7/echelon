@@ -1,4 +1,4 @@
-const Employee = require('../models/Employee');
+const Employee = require('../models/employee');
 const sequelize = require('../config/database');
 
 async function createAdmin() {

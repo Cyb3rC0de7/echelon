@@ -1,7 +1,7 @@
 const express = require('express');
 const jwt = require('jsonwebtoken');
 const { authenticateToken, JWT_SECRET } = require('../middleware/auth');
-const Employee = require('../models/Employee');
+const Employee = require('../models/employee');
 const router = express.Router();
 
 // POST api/auth/login

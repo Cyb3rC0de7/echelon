@@ -1,5 +1,5 @@
 const jwt = require('jsonwebtoken');
-const Employee = require('../models/Employee');
+const Employee = require('../models/employee');
 
 const JWT_SECRET = process.env.JWT_SECRET || '6f4c11a010f4bef58eb456b32622449632567a5ce265c2b73f44682d0c695b1f450afc8b86cf64680e3a4a06295b84f3248c899a4a1e919f67b6e1a7efda322c';
 

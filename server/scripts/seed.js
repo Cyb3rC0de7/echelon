@@ -1,6 +1,6 @@
 // server/scripts/seed.js
 const sequelize = require('../config/database');
-const Employee = require('../models/Employee');
+const Employee = require('../models/employee');
 
 async function seedDatabase() {
   try {
