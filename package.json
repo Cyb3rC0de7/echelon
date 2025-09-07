@@ -2,7 +2,7 @@
   "name": "echelon",
   "version": "1.0.0",
   "description": "Employee hierarchy management system for EPI-USE Africa",
-  "main": "index.js",
+  "main": "server/index.js",
   "engines": {
     "node": "22.x",
     "npm": "10.x"
@@ -16,7 +16,9 @@
     "build:client": "cd client && npm run build",
     "build": "npm run install:client && npm run build:client",
     "start": "cd server && npm start",
-    "heroku-postbuild": "npm run install:server && npm run build"
+    "heroku-postbuild": "npm run install:server && npm run build",
+    "seed": "node server/scripts/seed.js",
+    "create-admin": "node server/scripts/createAdmin.js"
   },
   "repository": {
     "type": "git",

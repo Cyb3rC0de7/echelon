@@ -31,25 +31,14 @@ const adminRoutes = require('../routes/admin');
 app.use('/api/admin', authenticateToken, adminRoutes);
 
 // Serve static files from React build (for production)
-if (process.env.NODE_ENV === 'production') {
-  const buildPath = path.join(__dirname, '../../client/build');
-  
-  console.log('Serving static files from:', buildPath);
-  
-  // Serve static files
-  app.use(express.static(buildPath));
-  
-  // Handle React routing - send all non-API requests to index.html
-  app.get('/', (req, res) => {
-    const indexPath = path.join(buildPath, 'index.html');
-    console.log('Serving index.html from:', indexPath);
-    res.sendFile(indexPath);
-  });
-} else {
-  app.get('/', (req, res) => {
-    res.json({ message: 'Echelon API - Development Mode' });
-  });
-}
+app.get('/', (req, res) => {
+  if (process.env.NODE_ENV === 'production') {
+    const buildPath = path.join(__dirname, '../../client/build');
+    res.sendFile(path.join(buildPath, 'index.html'));
+  } else {
+    res.send('API is running. Client not served in development mode.');
+  }
+});
 
 // Database connection and server start
 async function startServer() {
