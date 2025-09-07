@@ -40,7 +40,7 @@ if (process.env.NODE_ENV === 'production') {
   app.use(express.static(buildPath));
   
   // Handle React routing - send all non-API requests to index.html
-  app.get('*', (req, res) => {
+  app.get('/', (req, res) => {
     const indexPath = path.join(buildPath, 'index.html');
     console.log('Serving index.html from:', indexPath);
     res.sendFile(indexPath);
