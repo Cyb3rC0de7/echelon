@@ -11,16 +11,25 @@ import {
   Alert,
   Snackbar,
   IconButton,
-  Button
+  Button,
+  TextField,
+  InputAdornment
 } from '@mui/material';
 import { useDrop, useDrag } from 'react-dnd';
 import { DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
 import { hierarchy, tree } from 'd3-hierarchy';
-import { ZoomIn, ZoomOut, FitScreen, PanTool } from '@mui/icons-material';
+import { ZoomIn, ZoomOut, FitScreen, PanTool, Search, Clear } from '@mui/icons-material';
 import md5 from 'blueimp-md5';
 import { employeeApi, handleApiError } from '../services/api';
 import { useAuth } from '../App';
+
+// Custom wrapper to provide DnD context
+const DndProviderWrapper = ({ children }) => (
+  <DndProvider backend={HTML5Backend}>
+    {children}
+  </DndProvider>
+);
 
 const EmployeeNode = ({ employee, onDrop, onSelect, position, scale, canDrag, canDrop }) => {
   const [{ isDragging }, drag] = useDrag(() => ({
@@ -88,6 +97,7 @@ const EmployeeNode = ({ employee, onDrop, onSelect, position, scale, canDrag, ca
           <Typography variant="subtitle2" noWrap sx={{ fontWeight: 600 }}>
             {employee.name} {employee.surname}
           </Typography>
+
           <Typography variant="caption" color="text.secondary" noWrap>
             {employee.role}
           </Typography>
@@ -109,8 +119,12 @@ const HierarchyView = ({ refreshTrigger, onNotification }) => {
   const [offset, setOffset] = useState({ x: 400, y: 100 });
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+  const [searchTerm, setSearchTerm] = useState('');
+  const [searchResults, setSearchResults] = useState([]);
+  const [currentSearchIndex, setCurrentSearchIndex] = useState(-1);
   const containerRef = useRef(null);
   const svgRef = useRef(null);
+  const fitToScreenButtonRef = useRef(null);
 
   // Permission checks
   const isAdmin = user?.permissionLevel === 'admin';
@@ -286,14 +300,109 @@ const HierarchyView = ({ refreshTrigger, onNotification }) => {
     setScale(prev => Math.max(prev / 1.2, 0.3));
   };
 
-  const handleFitToScreen = () => {
+  const handleFitToScreen = useCallback(() => {
     setScale(1);
     setOffset({ x: 400, y: 100 });
+  }, []);
+
+  // Search functionality
+  const handleSearch = (e) => {
+    const term = e.target.value.toLowerCase();
+    setSearchTerm(term);
+    
+    if (term.trim() === '') {
+      setSearchResults([]);
+      setCurrentSearchIndex(-1);
+      return;
+    }
+
+    const results = nodes.filter(node => {
+      const employee = node.data;
+      const fullName = `${employee.name} ${employee.surname}`.toLowerCase();
+      const email = employee.email?.toLowerCase() || '';
+      const role = employee.role?.toLowerCase() || '';
+      const employeeNumber = employee.employeeNumber?.toLowerCase() || '';
+      
+      return fullName.includes(term) || 
+             email.includes(term) || 
+             role.includes(term) ||
+             employeeNumber.includes(term);
+    });
+
+    setSearchResults(results);
+    setCurrentSearchIndex(results.length > 0 ? 0 : -1);
   };
+
+  const clearSearch = () => {
+    setSearchTerm('');
+    setSearchResults([]);
+    setCurrentSearchIndex(-1);
+  };
+
+  const navigateSearchResults = (direction) => {
+    if (searchResults.length === 0) return;
+
+    let newIndex;
+    if (direction === 'next') {
+      newIndex = (currentSearchIndex + 1) % searchResults.length;
+    } else {
+      newIndex = (currentSearchIndex - 1 + searchResults.length) % searchResults.length;
+    }
+
+    setCurrentSearchIndex(newIndex);
+    centerOnEmployee(searchResults[newIndex]);
+  };
+
+  const centerOnEmployee = (node) => {
+    if (!node) return;
+
+    const container = containerRef.current;
+    if (!container) return;
+
+    const containerRect = container.getBoundingClientRect();
+    const containerCenterX = containerRect.width / 2;
+    const containerCenterY = containerRect.height / 2;
+
+    // Calculate the offset needed to center the employee
+    const targetX = containerCenterX - (node.x * scale);
+    const targetY = containerCenterY - (node.y * scale);
+
+    setOffset({ x: targetX, y: targetY });
+    setSelectedEmployee(node.data);
+
+    // Highlight the node temporarily
+    const employeeNode = document.querySelector(`[data-employee-id="${node.data.id}"]`);
+    if (employeeNode) {
+      employeeNode.style.boxShadow = '0 0 0 3px #ff5722';
+      employeeNode.style.zIndex = '100';
+      setTimeout(() => {
+        if (employeeNode) {
+          employeeNode.style.boxShadow = '';
+          employeeNode.style.zIndex = '';
+        }
+      }, 2000);
+    }
+  };
+
+  // Auto-fit to screen on mount
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      handleFitToScreen();
+    }, 100);
+    
+    return () => clearTimeout(timer);
+  }, [loading, handleFitToScreen]);
 
   useEffect(() => {
     fetchHierarchy();
   }, [refreshTrigger]);
+
+  // Auto-center on search result when index changes
+  useEffect(() => {
+    if (currentSearchIndex >= 0 && searchResults[currentSearchIndex]) {
+      centerOnEmployee(searchResults[currentSearchIndex]);
+    }
+  }, [currentSearchIndex]);
 
   if (loading) {
     return (
@@ -312,7 +421,7 @@ const HierarchyView = ({ refreshTrigger, onNotification }) => {
   }
 
   return (
-    <DndProvider backend={HTML5Backend}>
+    <DndProviderWrapper>
       <Box sx={{ p: 2, height: '100vh', display: 'flex', flexDirection: 'column' }}>
         {/* Header */}
         <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
@@ -323,9 +432,16 @@ const HierarchyView = ({ refreshTrigger, onNotification }) => {
             <Button onClick={handleZoomOut} size="small" variant="outlined">
               <ZoomOut />
             </Button>
-            <Button onClick={handleFitToScreen} size="small" variant="outlined">
+
+            <Button 
+              onClick={handleFitToScreen} 
+              size="small" 
+              variant="outlined"
+              ref={fitToScreenButtonRef}
+            >
               <FitScreen />
             </Button>
+
             <Button onClick={handleZoomIn} size="small" variant="outlined">
               <ZoomIn />
             </Button>
@@ -335,6 +451,53 @@ const HierarchyView = ({ refreshTrigger, onNotification }) => {
           </Box>
         </Box>
         
+        {/* Search Bar */}
+        <Box mb={2}>
+          <TextField
+            fullWidth
+            placeholder="Search employees by name, email, role, or employee number..."
+            value={searchTerm}
+            onChange={handleSearch}
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <Search />
+                </InputAdornment>
+              ),
+              endAdornment: searchTerm && (
+                <InputAdornment position="end">
+                  <IconButton size="small" onClick={clearSearch}>
+                    <Clear />
+                  </IconButton>
+                </InputAdornment>
+              )
+            }}
+          />
+          {searchResults.length > 0 && (
+            <Box display="flex" alignItems="center" gap={1} mt={1}>
+              <Typography variant="body2" color="text.secondary">
+                {currentSearchIndex + 1} of {searchResults.length} results
+              </Typography>
+
+              <Button
+                size="small"
+                onClick={() => navigateSearchResults('prev')}
+                disabled={searchResults.length <= 1}
+              >
+                Previous
+              </Button>
+
+              <Button
+                size="small"
+                onClick={() => navigateSearchResults('next')}
+                disabled={searchResults.length <= 1}
+              >
+                Next
+              </Button>
+            </Box>
+          )}
+        </Box>
+
         <Typography variant="body2" color="text.secondary" gutterBottom>
           {(isAdmin || isHR || isManager) && 'Drag employees to change their manager. '}
           Scroll to zoom, click and drag to pan.
@@ -437,6 +600,7 @@ const HierarchyView = ({ refreshTrigger, onNotification }) => {
                       <Typography variant="h6">
                         {selectedEmployee.name} {selectedEmployee.surname}
                       </Typography>
+                      
                       <Typography variant="body2" color="text.secondary">
                         {selectedEmployee.employeeNumber}
                       </Typography>
@@ -508,7 +672,7 @@ const HierarchyView = ({ refreshTrigger, onNotification }) => {
           message={snackbar.message}
         />
       </Box>
-    </DndProvider>
+    </DndProviderWrapper>
   );
 };
 

@@ -18,17 +18,8 @@ import {
   CardContent,
   CardActions,
   InputAdornment,
-  Alert,
   Switch,
-  FormControlLabel,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  Tabs,
-  Tab
+  FormControlLabel
 } from '@mui/material';
 import {
   Edit as EditIcon,
@@ -56,7 +47,7 @@ import EmployeeForm from './EmployeeForm';
 const EmployeeList = ({ refreshTrigger, onNotification, onRefresh }) => {
   const { user } = useAuth();
   const [employees, setEmployees] = useState([]);
-  const [allEmployees, setAllEmployees] = useState([]); // Store all employees for filtering
+  const [allEmployees, setAllEmployees] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [editEmployee, setEditEmployee] = useState(null);
@@ -87,48 +78,89 @@ const EmployeeList = ({ refreshTrigger, onNotification, onRefresh }) => {
 
   // Check if user can edit employee
   const canEditEmployee = (employee) => {
-    if (isAdmin || isHR) return true;
-    if (isManager && employee.manager?.id === user?.id) return true;
-    if (isEmployee && employee.id === user?.id) return true;
+    // Everyone can edit themselves
+    if (employee.id === user?.id) return true;
+    
+    // Admins can edit anyone except other admins
+    if (isAdmin) return employee.permissionLevel !== 'admin';
+    
+    // HR can edit anyone except admins
+    if (isHR) return employee.permissionLevel !== 'admin';
+    
+    // Managers can edit their direct reports only
+    if (isManager) return employee.manager?.id === user?.id;
+    
+    // Employees can only edit themselves (handled above)
     return false;
   };
 
   // Check if user can delete employee
   const canDeleteEmployee = (employee) => {
-    if (isAdmin) return true;
-    if (isHR && employee.permissionLevel !== 'admin') return true;
-    return false;
+    return isAdmin && employee.permissionLevel !== 'admin';
   };
 
   // Check if user can reset password
   const canResetPassword = (employee) => {
-    return isAdmin;
+    return isAdmin && employee.id !== user?.id;
   };
 
   // Check if user can toggle active status
   const canToggleActive = (employee) => {
-    return isAdmin;
+    return isAdmin && employee.permissionLevel !== 'admin';
   };
 
-  // Filter employees based on permissions
+  // Filter employees based on user permissions
   const getVisibleEmployees = (employeeList) => {
     if (isAdmin || isHR) return employeeList;
+    
     if (isManager) {
-      return employeeList.filter(emp => 
-        emp.manager?.id === user?.id ||
-        emp.permissionLevel === 'admin' ||
-        emp.permissionLevel === 'hr' ||
-        emp.permissionLevel === 'manager' ||
-        emp.id === user?.id
-      );
+      return employeeList.filter(emp => {
+        // Themselves
+        if (emp.id === user?.id) return true;
+        
+        // All admins and HR are visible
+        if (emp.permissionLevel === 'admin' || emp.permissionLevel === 'hr') return true;
+        
+        // Their direct reports
+        if (emp.manager?.id === user?.id) return true;
+        
+        // Their own manager (if they have one)
+        if (user?.manager?.id && emp.id === user.manager.id) return true;
+        
+        // Peer managers - if this manager has a manager, show other managers with same manager
+        // If this manager has no manager (top-level), show all other top-level managers
+        if (emp.permissionLevel === 'manager' && emp.id !== user?.id) {
+          if (user?.manager?.id) {
+            // Manager has a manager - show peers with same manager
+            return emp.manager?.id === user.manager.id;
+          } else {
+            // Manager has no manager (top-level) - show other top-level managers
+            return !emp.manager?.id;
+          }
+        }
+        
+        return false;
+      });
     }
+    
     if (isEmployee) {
-      return employeeList.filter(emp =>
-        emp.id === user?.id ||
-        emp.id === user?.manager?.id ||
-        (emp.manager?.id === user?.manager?.id && emp.id !== user?.id)
-      );
+      return employeeList.filter(emp => {
+        // Themselves
+        if (emp.id === user?.id) return true;
+        
+        // All admins and HR are visible
+        if (emp.permissionLevel === 'admin' || emp.permissionLevel === 'hr') return true;
+        
+        // Their direct manager
+        if (user?.manager && emp.id === user.manager.id) return true;
+        
+        // Colleagues with same manager
+        if (user?.manager && emp.manager?.id === user.manager.id && emp.id !== user?.id) return true;
+        
+        return false;
+      });
     }
+    
     return [];
   };
 
@@ -142,14 +174,12 @@ const EmployeeList = ({ refreshTrigger, onNotification, onRefresh }) => {
       // Apply filters
       let filteredEmployees = allEmployeesData;
       
-      // Apply permission filter
       if (activePermissionFilter) {
         filteredEmployees = filteredEmployees.filter(emp => 
           emp.permissionLevel === activePermissionFilter
         );
       }
       
-      // Apply status filter
       if (activeStatusFilter !== null) {
         filteredEmployees = filteredEmployees.filter(emp => 
           emp.isActive === activeStatusFilter
@@ -183,19 +213,11 @@ const EmployeeList = ({ refreshTrigger, onNotification, onRefresh }) => {
   }, [refreshTrigger, searchTerm, activePermissionFilter, activeStatusFilter]);
 
   const handlePermissionFilterClick = (permissionLevel) => {
-    if (activePermissionFilter === permissionLevel) {
-      setActivePermissionFilter(null); // Clear filter if already active
-    } else {
-      setActivePermissionFilter(permissionLevel);
-    }
+    setActivePermissionFilter(activePermissionFilter === permissionLevel ? null : permissionLevel);
   };
 
   const handleStatusFilterClick = (status) => {
-    if (activeStatusFilter === status) {
-      setActiveStatusFilter(null); // Clear filter if already active
-    } else {
-      setActiveStatusFilter(status);
-    }
+    setActiveStatusFilter(activeStatusFilter === status ? null : status);
   };
 
   const clearAllFilters = () => {
@@ -219,7 +241,7 @@ const EmployeeList = ({ refreshTrigger, onNotification, onRefresh }) => {
     }
 
     const prevEmployees = [...employees];
-    setEmployees((curr) => curr.filter((e) => e.id !== employee.id));
+    setEmployees(curr => curr.filter(e => e.id !== employee.id));
 
     try {
       await employeeApi.delete(employee.id);
@@ -282,7 +304,7 @@ const EmployeeList = ({ refreshTrigger, onNotification, onRefresh }) => {
     return colors[level] || 'default';
   };
 
-  const StatCard = ({ title, value, icon, color = 'primary', filterType, filterValue, onClick }) => (
+  const StatCard = ({ title, value, icon, color = 'primary', filterValue, onClick }) => (
     <Card 
       sx={{ 
         cursor: isAdmin && onClick ? 'pointer' : 'default',
@@ -462,6 +484,7 @@ const EmployeeList = ({ refreshTrigger, onNotification, onRefresh }) => {
                     onClick={clearAllFilters}
                   />
                 </Grid>
+
                 <Grid>
                   <StatCard
                     title="Admins"
@@ -472,6 +495,7 @@ const EmployeeList = ({ refreshTrigger, onNotification, onRefresh }) => {
                     onClick={handlePermissionFilterClick}
                   />
                 </Grid>
+
                 <Grid>
                   <StatCard
                     title="HR"
@@ -482,6 +506,7 @@ const EmployeeList = ({ refreshTrigger, onNotification, onRefresh }) => {
                     onClick={handlePermissionFilterClick}
                   />
                 </Grid>
+
                 <Grid>
                   <StatCard
                     title="Managers"
@@ -492,6 +517,7 @@ const EmployeeList = ({ refreshTrigger, onNotification, onRefresh }) => {
                     onClick={handlePermissionFilterClick}
                   />
                 </Grid>
+
                 <Grid>
                   <StatCard
                     title="Employees"
@@ -502,6 +528,7 @@ const EmployeeList = ({ refreshTrigger, onNotification, onRefresh }) => {
                     onClick={handlePermissionFilterClick}
                   />
                 </Grid>
+
                 <Grid>
                   <StatCard
                     title="Inactive"
@@ -584,6 +611,7 @@ const EmployeeList = ({ refreshTrigger, onNotification, onRefresh }) => {
               >
                 Table View
               </Button>
+
               <Button
                 variant={viewMode === 'cards' ? 'contained' : 'outlined'}
                 onClick={() => setViewMode('cards')}
@@ -597,7 +625,6 @@ const EmployeeList = ({ refreshTrigger, onNotification, onRefresh }) => {
       </Paper>
 
       {/* Employee List View */}
-      {/* Table View */}
       {viewMode === 'table' && (
         <Paper sx={{ height: 600, width: '100%' }}>
           <DataGrid
@@ -647,16 +674,19 @@ const EmployeeList = ({ refreshTrigger, onNotification, onRefresh }) => {
                       <WorkIcon fontSize="small" sx={{ mr: 1, color: 'text.secondary' }} />
                       <Typography variant="body2">{employee.role}</Typography>
                     </Box>
+
                     <Box display="flex" alignItems="center" mb={0.5}>
                       <EmailIcon fontSize="small" sx={{ mr: 1, color: 'text.secondary' }} />
                       <Typography variant="body2">{employee.email}</Typography>
                     </Box>
+
                     {canSeeSalary(employee) && (
                       <Box display="flex" alignItems="center" mb={0.5}>
                         <SalaryIcon fontSize="small" sx={{ mr: 1, color: 'text.secondary' }} />
                         <Typography variant="body2">{`R${Number(employee.salary).toLocaleString()}`}</Typography>
                       </Box>
                     )}
+
                     {employee.manager && (
                       <Box display="flex" alignItems="center">
                         <PersonIcon fontSize="small" sx={{ mr: 1, color: 'text.secondary' }} />
@@ -665,6 +695,7 @@ const EmployeeList = ({ refreshTrigger, onNotification, onRefresh }) => {
                         </Typography>
                       </Box>
                     )}
+
                     {isAdmin && (
                       <Box display="flex" alignItems="center" mt={1}>
                         <FormControlLabel
@@ -691,6 +722,7 @@ const EmployeeList = ({ refreshTrigger, onNotification, onRefresh }) => {
                       Edit
                     </Button>
                   )}
+
                   {canResetPassword(employee) && (
                     <Button
                       size="small"
@@ -701,6 +733,7 @@ const EmployeeList = ({ refreshTrigger, onNotification, onRefresh }) => {
                       Reset Password
                     </Button>
                   )}
+
                   {canDeleteEmployee(employee) && (
                     <Button
                       size="small"
@@ -722,6 +755,7 @@ const EmployeeList = ({ refreshTrigger, onNotification, onRefresh }) => {
       <EditEmployeeDialog 
         editEmployee={editEmployee} 
         setEditEmployee={setEditEmployee}
+        canEditEmployee={canEditEmployee}
         onNotification={onNotification}
         onRefresh={onRefresh}
       />
@@ -741,34 +775,40 @@ const EmployeeList = ({ refreshTrigger, onNotification, onRefresh }) => {
   );
 };
 
-// Dialog Components (keep the same as before)
-const EditEmployeeDialog = ({ editEmployee, setEditEmployee, onNotification, onRefresh }) => (
-  <Dialog
-    open={!!editEmployee}
-    onClose={() => setEditEmployee(null)}
-    maxWidth="md"
-    fullWidth
-  >
-    <DialogTitle>Edit Employee</DialogTitle>
-    <DialogContent>
-      {editEmployee && (
-        <EmployeeForm
-          employee={editEmployee}
-          onSuccess={() => {
-            onNotification('Employee updated successfully!');
-            setEditEmployee(null);
-            onRefresh();
-          }}
-          onError={(message) => onNotification(message, 'error')}
-          onCancel={() => setEditEmployee(null)}
-        />
-      )}
-    </DialogContent>
-    <DialogActions>
-      <Button onClick={() => setEditEmployee(null)}>Close</Button>
-    </DialogActions>
-  </Dialog>
-);
+// Dialog Components
+const EditEmployeeDialog = ({ editEmployee, setEditEmployee, canEditEmployee, onNotification, onRefresh }) => {
+  const { user } = useAuth();
+  
+  return (
+    <Dialog
+      open={!!editEmployee}
+      onClose={() => setEditEmployee(null)}
+      maxWidth="md"
+      fullWidth
+    >
+      <DialogTitle>Edit Employee</DialogTitle>
+      <DialogContent>
+        {editEmployee && (
+          <EmployeeForm
+            employee={editEmployee}
+            currentUser={user}
+            canEdit={canEditEmployee(editEmployee)}
+            onSuccess={() => {
+              onNotification('Employee updated successfully!');
+              setEditEmployee(null);
+              onRefresh();
+            }}
+            onError={(message) => onNotification(message, 'error')}
+            onCancel={() => setEditEmployee(null)}
+          />
+        )}
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={() => setEditEmployee(null)}>Close</Button>
+      </DialogActions>
+    </Dialog>
+  );
+};
 
 const DeleteConfirmationDialog = ({ deleteDialog, setDeleteDialog, handleDelete }) => (
   <Dialog
@@ -782,10 +822,12 @@ const DeleteConfirmationDialog = ({ deleteDialog, setDeleteDialog, handleDelete 
         {deleteDialog.employee?.surname}? This action cannot be undone.
       </Typography>
     </DialogContent>
+
     <DialogActions>
       <Button onClick={() => setDeleteDialog({ open: false, employee: null })}>
         Cancel
       </Button>
+
       <Button
         onClick={() => handleDelete(deleteDialog.employee)}
         color="error"
@@ -807,10 +849,12 @@ const ResetPasswordDialog = ({ resetPasswordDialog, setResetPasswordDialog, hand
       <Typography>
         Reset password for {resetPasswordDialog.employee?.name} {resetPasswordDialog.employee?.surname}?
       </Typography>
+
       <Typography variant="body2" color="text.secondary" mt={1}>
         The password will be reset to: {resetPasswordDialog.employee?.name}{resetPasswordDialog.employee?.employeeNumber}
       </Typography>
     </DialogContent>
+    
     <DialogActions>
       <Button onClick={() => setResetPasswordDialog({ open: false, employee: null })}>
         Cancel
