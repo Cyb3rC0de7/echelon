@@ -11,6 +11,7 @@ const app = express();
 // Middleware
 app.use(cors());
 app.use(express.json());
+
 const { authenticateToken } = require('../middleware/auth');
 
 const PORT = process.env.PORT || 5000;
@@ -31,13 +32,28 @@ const adminRoutes = require('../routes/admin');
 app.use('/api/admin', authenticateToken, adminRoutes);
 
 // Serve static files from React build (for production)
-app.get('/', (req, res) => {
-  if (process.env.NODE_ENV === 'production') {
-    const buildPath = path.join(__dirname, '../../client/build');
+if (process.env.NODE_ENV === 'production') {
+  const buildPath = path.join(__dirname, '../../client/build');
+  
+  console.log('Serving static files from:', buildPath);
+  
+  // Serve static files
+  app.use(express.static(buildPath));
+  
+  // Handle React routing - send all non-API requests to index.html
+  app.get('/', (req, res) => {
     res.sendFile(path.join(buildPath, 'index.html'));
-  } else {
-    res.send('API is running. Client not served in development mode.');
-  }
+  });
+} else {
+  app.get('/', (req, res) => {
+    res.json({ message: 'Echelon API - Development Mode' });
+  });
+}
+
+// Error handling middleware
+app.use((err, req, res, next) => {
+  console.error(err.stack);
+  res.status(500).json({ error: 'Something went wrong!' });
 });
 
 // Database connection and server start
@@ -54,11 +70,6 @@ async function startServer() {
     app.listen(PORT, () => {
       console.log(`Server running on http://localhost:${PORT}`);
       console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
-      
-      if (process.env.NODE_ENV === 'production') {
-        const buildPath = path.join(__dirname, '../../client/build');
-        console.log('Static files path:', buildPath);
-      }
     });
   } catch (error) {
     console.error('Unable to start server:', error);
